@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planogram Web Galeri Otomatis</title>
+    <style>
+        /* Gaya CSS */
+        body { font-family: sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; }
+        h1 { text-align: center; color: #333; margin-bottom: 5px; }
+        #last-update { text-align: center; font-style: italic; margin-bottom: 20px; color: #666; font-size: 0.9em; }
+        .planogram-group { background-color: white; padding: 20px; margin-bottom: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .planogram-group h2 { border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-top: 0; color: #007bff; }
+        .gallery-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
+        .gallery-item { overflow: hidden; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .gallery-item img { width: 100%; height: 180px; object-fit: cover; display: block; }
+        .empty-folder { padding: 15px; border: 2px dashed #ffc107; color: #ff9800; background-color: #fff9e6; border-radius: 5px; display: flex; align-items: center; }
+        .empty-folder span { font-size: 1.5em; margin-right: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>Planogram Web Galeri Otomatis</h1>
+    <p id="last-update"></p>
+    <div id="gallery-output">
+        <p style="text-align: center;">Memuat data galeri...</p>
+    </div>
+
+    <script>
+        // ID GOOGLE SHEET Anda
+        const SPREADSHEET_ID = '1RIs8Q3Xp5sWLInkmOPpIJqqKsmycSCnz5b-b7zFiZ_k'; 
+        const API_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json`;
+        
+        const outputDiv = document.getElementById('gallery-output');
+        const updateMessage = document.getElementById('last-update');
+
+        function processData(rows) {
+            const groupedData = {};
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const folderTitleCell = row.c[0]; // Kolom A
+                const imageUrlCell = row.c[1];    // Kolom B
+
+                if (folderTitleCell && folderTitleCell.v && imageUrlCell && imageUrlCell.v) {
+                    const title = folderTitleCell.v;
+                    const url = imageUrlCell.v;
+
+                    if (!groupedData[title]) {
+                        groupedData[title] = [];
+                    }
+                    groupedData[title].push(url);
+                }
+            }
+            return groupedData;
+        }
+
+        function renderGallery(groupedData) {
+            let htmlContent = '';
+            
+            for (const title in groupedData) {
+                const urls = groupedData[title];
+                
+                htmlContent += `
+                    <div class="planogram-group">
+                        <h2>${title}</h2>
+                        <div class="gallery-container">
+                `;
+                
+                if (urls.length === 1 && urls[0] === "👁️ Kosong") {
+                    htmlContent += `
+                        <div class="empty-folder">
+                            <span role="img" aria-label="Folder Kosong">👁️</span> 
+                            Folder Planogram ini kosong.
+                        </div>
+                    `;
+                } else if (urls.length === 1 && urls[0] === "👁️ AKSES DITOLAK / ID SALAH") {
+                     htmlContent += `
+                        <div class="empty-folder" style="border-color: red; color: red;">
+                            <span role="img" aria-label="Akses Ditolak">❌</span> 
+                            Akses ke folder ini ditolak atau ID salah.
+                        </div>
+                    `;
+                } else {
+                    urls.forEach(url => {
+                        htmlContent += `
+                            <div class="gallery-item">
+                                <img src="${url}" alt="${title}" loading="lazy" onerror="this.onerror=null; this.src='https://via.placeholder.com/220x180?text=Gambar+Gagal+Muat';">
+                                <div class="item-caption">
+                                    ${title}
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                
+                htmlContent += `
+                        </div>
+                    </div>
+                `;
+            }
+            outputDiv.innerHTML = htmlContent;
+            updateMessage.textContent = `Data di Web Terakhir Diambil: ${new Date().toLocaleTimeString('id-ID')}.`;
+        }
+
+        async function fetchGalleryData() {
+            try {
+                const response = await fetch(API_URL);
+                const text = await response.text();
+                
+                // Parsing JSONP dari Google GViz
+                const jsonText = text.substring(47).slice(0, -2);
+                const data = JSON.parse(jsonText);
+
+                const rows = data.table.rows; 
+                const groupedData = processData(rows);
+
+                renderGallery(groupedData);
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                outputDiv.innerHTML = '<p style="color: red; text-align: center;">Gagal memuat data. PASTIKAN GOOGLE SHEET SUDAH DISETEL "Anyone with the link can view".</p>';
+            }
+        }
+
+        // Jalankan saat pertama kali dimuat dan setiap 1 menit berikutnya
+        fetchGalleryData();
+        setInterval(fetchGalleryData, 60000); 
+    </script>
+
+</body>
+</html>
